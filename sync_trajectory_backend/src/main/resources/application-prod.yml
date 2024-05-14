@@ -1,0 +1,12 @@
+spring:
+  datasource:
+    driver-class-name: com.mysql.jdbc.Driver
+    url: jdbc:mysql://118.25.14.151:3306/sync_trajectory_backend?useSSL=false
+    username: thr
+    password: thr040103
+  # session 失效时间
+  session:
+    timeout: 86400
+
+server:
+  address: 0.0.0.0
