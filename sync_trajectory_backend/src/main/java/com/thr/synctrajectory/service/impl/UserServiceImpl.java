@@ -2,6 +2,8 @@ package com.thr.synctrajectory.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
 import com.thr.synctrajectory.common.ErrorCode;
 import com.thr.synctrajectory.exception.BusinessException;
 import com.thr.synctrajectory.mapper.UserMapper;
@@ -10,12 +12,16 @@ import com.thr.synctrajectory.service.UserService;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
+import org.springframework.util.CollectionUtils;
 import org.springframework.util.DigestUtils;
 
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
+import java.util.List;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import static com.thr.synctrajectory.constant.UserConstant.USER_LOGIN_STATE;
 
@@ -170,6 +176,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
         safetyUser.setUserStatus(originUser.getUserStatus());
         safetyUser.setCreateTime(originUser.getCreateTime());
         safetyUser.setUserRole(originUser.getUserRole());
+        safetyUser.setTags(originUser.getTags());
 
         return safetyUser;
     }
@@ -185,6 +192,54 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
         // 移除登录态
         request.getSession().removeAttribute(USER_LOGIN_STATE);
         return 1;
+    }
+
+    /**
+     * 根据标签搜索用户
+     *
+     * @param tagNameList 标签列表
+     * @return 符合条件的用户
+     */
+    @Override
+    public List<User> searchUsersByTags(List<String> tagNameList) {
+        // 先判空
+        if (CollectionUtils.isEmpty(tagNameList)) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "标签不能为空");
+        }
+
+        // 查询方法一: SQL 模糊匹配
+//        QueryWrapper<User> queryWrapper = new QueryWrapper<>();
+//        // 拼接 and 查询 like '%Java%' and like '%Python%'
+//        // 注意: MySQL中, 默认情况下, 字符串比较不区分大小写
+//        for (String tagName : tagNameList) {
+//            queryWrapper = queryWrapper.like("tags", tagName);
+//        }
+//
+//        List<User> userList = userMapper.selectList(queryWrapper);
+//        return userList.stream().map(this::getSafetyUser).collect(Collectors.toList());
+
+        // 查询方法二: 内存查询
+        QueryWrapper<User> queryWrapper = new QueryWrapper<>();
+        // (1) 先查询所有用户
+        List<User> userList = userMapper.selectList(queryWrapper);
+
+        Gson gson = new Gson();
+        // (2) 在内存中判断是否包含要求的标签
+        return userList.stream().filter(user -> {
+            String tagsStr = user.getTags();
+            if (StringUtils.isBlank(tagsStr)) {  // 如果这个用户的 tags 字段为空, 直接返回 false
+                return false;
+            }
+            // 使用 set 集合加快查询速度
+            Set<String> tempTagNameSet = gson.fromJson(tagsStr, new TypeToken<Set<String>>() {
+            }.getType());
+            for (String tagName : tagNameList) {
+                if (!tempTagNameSet.contains(tagName)) {  // 如果通过反序列化得到的 Set 里不包含 List 中的所有标签
+                    return false;  // filter 会过滤掉返回 false 的对象
+                }
+            }
+            return true;
+        }).map(this::getSafetyUser).collect(Collectors.toList());
     }
 }
 

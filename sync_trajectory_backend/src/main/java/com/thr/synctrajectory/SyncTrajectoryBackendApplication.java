@@ -5,7 +5,7 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication
-@MapperScan("com.thr.usercenter.mapper")
+@MapperScan("com.thr.synctrajectory.mapper")
 public class SyncTrajectoryBackendApplication {
 
     public static void main(String[] args) {

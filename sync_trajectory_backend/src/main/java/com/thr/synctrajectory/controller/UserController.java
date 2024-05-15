@@ -10,6 +10,7 @@ import com.thr.synctrajectory.model.domain.request.UserLoginRequest;
 import com.thr.synctrajectory.model.domain.request.UserRegisterRequest;
 import com.thr.synctrajectory.service.UserService;
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.util.CollectionUtils;
 import org.springframework.web.bind.annotation.*;
 
 import javax.annotation.Resource;
@@ -182,5 +183,20 @@ public class UserController {
 
         // 2. 如果不是管理员则返回 false
         return user != null && user.getUserRole() == ADMIN_ROLE;
+    }
+
+    /**
+     * 根据标签搜索用户
+     *
+     * @param tagNameList 用户要拥有的标签
+     * @return 符合条件的用户列表
+     */
+    @GetMapping("/search/tags")
+    public BaseResponse<List<User>> searchUsersByTags(@RequestParam(required = false) List<String> tagNameList) {
+        if (CollectionUtils.isEmpty(tagNameList)) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "标签不能为空");
+        }
+        List<User> userList = userService.searchUsersByTags(tagNameList);
+        return ResultUtils.success(userList);
     }
 }

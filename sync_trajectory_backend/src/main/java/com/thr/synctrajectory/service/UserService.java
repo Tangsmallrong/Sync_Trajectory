@@ -19,7 +19,7 @@ public interface UserService extends IService<User> {
      * @param userAccount   用户账户
      * @param userPassword  用户密码
      * @param checkPassword 校验密码
-     * @param planetCode 用户编号
+     * @param planetCode    用户编号
      * @return 新用户 id
      */
     long userRegister(String userAccount, String userPassword, String checkPassword, String planetCode);
@@ -29,13 +29,14 @@ public interface UserService extends IService<User> {
      *
      * @param userAccount  用户账户
      * @param userPassword 用户密码
-     * @param request 客户端的请求
+     * @param request      客户端的请求
      * @return 返回脱敏后的用户信息
      */
     User userLogin(String userAccount, String userPassword, HttpServletRequest request);
 
     /**
      * 用户脱敏
+     *
      * @param originUser 原始用户对象
      * @return 删除密码字段后的用户对象
      */
@@ -47,4 +48,12 @@ public interface UserService extends IService<User> {
      * @param request 请求对象
      */
     int userLogout(HttpServletRequest request);
+
+    /**
+     * 根据标签搜索用户
+     *
+     * @param tagNameList 标签列表
+     * @return 符合条件的用户
+     */
+    List<User> searchUsersByTags(List<String> tagNameList);
 }
