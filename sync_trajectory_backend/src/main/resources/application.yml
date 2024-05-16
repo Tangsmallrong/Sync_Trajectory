@@ -1,6 +1,11 @@
 spring:
   application:
-    name: user-center
+    name: synctrajectory
+  mvc:
+    pathmatch:
+      matching-strategy: ant_path_matcher
+  profiles:
+    active: dev
 
   datasource:
     driver-class-name: com.mysql.jdbc.Driver

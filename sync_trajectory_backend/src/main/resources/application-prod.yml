@@ -7,6 +7,8 @@ spring:
   # session 失效时间
   session:
     timeout: 86400
+  profiles:
+    active: prod
 
 server:
   address: 0.0.0.0

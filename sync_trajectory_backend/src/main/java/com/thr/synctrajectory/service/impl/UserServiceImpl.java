@@ -17,7 +17,9 @@ import org.springframework.util.DigestUtils;
 
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -195,7 +197,32 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
     }
 
     /**
-     * 根据标签搜索用户
+     * 根据标签搜索用户(SQL查询版-标识为deprecated)
+     *
+     * @param tagNameList 标签列表
+     * @return 符合条件的用户
+     */
+    @Deprecated
+    private List<User> searchUsersBySQL(List<String> tagNameList) {
+        // 先判空
+        if (CollectionUtils.isEmpty(tagNameList)) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "标签不能为空");
+        }
+
+        // 查询方法一: SQL 模糊匹配
+        QueryWrapper<User> queryWrapper = new QueryWrapper<>();
+        // 拼接 and 查询 like '%Java%' and like '%Python%'
+        // 注意: MySQL中, 默认情况下, 字符串比较不区分大小写
+        for (String tagName : tagNameList) {
+            queryWrapper = queryWrapper.like("tags", tagName);
+        }
+
+        List<User> userList = userMapper.selectList(queryWrapper);
+        return userList.stream().map(this::getSafetyUser).collect(Collectors.toList());
+    }
+
+    /**
+     * 根据标签搜索用户(内存过滤版)
      *
      * @param tagNameList 标签列表
      * @return 符合条件的用户
@@ -207,17 +234,6 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "标签不能为空");
         }
 
-        // 查询方法一: SQL 模糊匹配
-//        QueryWrapper<User> queryWrapper = new QueryWrapper<>();
-//        // 拼接 and 查询 like '%Java%' and like '%Python%'
-//        // 注意: MySQL中, 默认情况下, 字符串比较不区分大小写
-//        for (String tagName : tagNameList) {
-//            queryWrapper = queryWrapper.like("tags", tagName);
-//        }
-//
-//        List<User> userList = userMapper.selectList(queryWrapper);
-//        return userList.stream().map(this::getSafetyUser).collect(Collectors.toList());
-
         // 查询方法二: 内存查询
         QueryWrapper<User> queryWrapper = new QueryWrapper<>();
         // (1) 先查询所有用户
@@ -227,12 +243,19 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
         // (2) 在内存中判断是否包含要求的标签
         return userList.stream().filter(user -> {
             String tagsStr = user.getTags();
-            if (StringUtils.isBlank(tagsStr)) {  // 如果这个用户的 tags 字段为空, 直接返回 false
+            if (StringUtils.isBlank(tagsStr)) {  // 如果这个用户的 tags 字段为空, 直接返回 false, 防止 NPE
                 return false;
             }
-            // 使用 set 集合加快查询速度
+            // 将 json 字符串 tagsStr 反序列化为 set 集合, 加快查询速度
             Set<String> tempTagNameSet = gson.fromJson(tagsStr, new TypeToken<Set<String>>() {
             }.getType());
+
+            // 也可以使用 Optional 显式处理可能为 null 的情况, 确保反序列化后的 Set<String> 不为 null, 避免 NPE
+            //   Optional 是 Java 8 引入的一个容器类, 用于表示可能为空的值
+            //   ofNullable 方法接受一个可能为 null 的值, 如果该值为 null, 返回一个空的 Optional 实例
+            //   orElse 方法用于在 Optional 为空时提供一个默认值, 此处返回一个新的空 HashSet 实例
+            // tempTagNameSet = Optional.ofNullable(tempTagNameSet).orElse(new HashSet<>());
+
             for (String tagName : tagNameList) {
                 if (!tempTagNameSet.contains(tagName)) {  // 如果通过反序列化得到的 Set 里不包含 List 中的所有标签
                     return false;  // filter 会过滤掉返回 false 的对象
