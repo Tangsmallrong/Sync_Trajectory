@@ -18,7 +18,6 @@ import javax.servlet.http.HttpServletRequest;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import static com.thr.synctrajectory.constant.UserConstant.ADMIN_ROLE;
 import static com.thr.synctrajectory.constant.UserConstant.USER_LOGIN_STATE;
 
 /**
@@ -132,7 +131,7 @@ public class UserController {
     @GetMapping("/search")
     public BaseResponse<List<User>> searchUsers(String username, HttpServletRequest request) {
         // 如果不是管理员
-        if (!isAdmin(request)) {
+        if (!userService.isAdmin(request)) {
             throw new BusinessException(ErrorCode.NO_AUTH);
         }
 
@@ -149,43 +148,6 @@ public class UserController {
     }
 
     /**
-     * 删除用户(仅管理员可删除)
-     *
-     * @param id      用户 id
-     * @param request 请求
-     * @return 是否删除成功
-     */
-    @PostMapping("/delete")
-    public BaseResponse<Boolean> deleteUsers(@RequestBody long id, HttpServletRequest request) {
-        // 如果不是管理员
-        if (!isAdmin(request)) {
-            throw new BusinessException(ErrorCode.NO_AUTH);
-        }
-
-        if (id <= 0) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR);
-        }
-        boolean b = userService.removeById(id);
-        return ResultUtils.success(b);
-    }
-
-    /**
-     * 是否为管理员
-     *
-     * @param request 请求
-     * @return 是否为管理员
-     */
-    private boolean isAdmin(HttpServletRequest request) {
-        // 仅管理员可查询和删除
-        // 1. 从 session 中拿到用户的登录态, 返回用户信息
-        Object userObj = request.getSession().getAttribute(USER_LOGIN_STATE);
-        User user = (User) userObj;
-
-        // 2. 如果不是管理员则返回 false
-        return user != null && user.getUserRole() == ADMIN_ROLE;
-    }
-
-    /**
      * 根据标签搜索用户
      *
      * @param tagNameList 用户要拥有的标签
@@ -198,5 +160,45 @@ public class UserController {
         }
         List<User> userList = userService.searchUsersByTags(tagNameList);
         return ResultUtils.success(userList);
+    }
+
+    /**
+     * 修改用户信息
+     *
+     * @param user 用户信息
+     * @return 成功返回正数
+     */
+    @PostMapping("/update")
+    public BaseResponse<Integer> updateUser(@RequestBody User user, HttpServletRequest request) {
+        // 校验参数是否为空
+        if (user == null) {
+            throw new BusinessException(ErrorCode.PARAMS_NULL_ERROR, "参数为空");
+        }
+
+        // 获取当前登录用户
+        User loginUser = userService.getLoginUser(request);
+        int res = userService.updateUser(user, loginUser);
+        return ResultUtils.success(res);
+    }
+
+    /**
+     * 删除用户(仅管理员可删除)
+     *
+     * @param id      用户 id
+     * @param request 请求
+     * @return 是否删除成功
+     */
+    @PostMapping("/delete")
+    public BaseResponse<Boolean> deleteUsers(@RequestBody long id, HttpServletRequest request) {
+        // 如果不是管理员
+        if (!userService.isAdmin(request)) {
+            throw new BusinessException(ErrorCode.NO_AUTH);
+        }
+
+        if (id <= 0) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+        boolean b = userService.removeById(id);
+        return ResultUtils.success(b);
     }
 }

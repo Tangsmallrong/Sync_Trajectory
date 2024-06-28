@@ -17,14 +17,13 @@ import org.springframework.util.DigestUtils;
 
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import static com.thr.synctrajectory.constant.UserConstant.ADMIN_ROLE;
 import static com.thr.synctrajectory.constant.UserConstant.USER_LOGIN_STATE;
 
 /**
@@ -264,6 +263,105 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
             }
             return true;
         }).map(this::getSafetyUser).collect(Collectors.toList());
+    }
+
+    /**
+     * 更新用户信息
+     *
+     * @param user      用户信息
+     * @param loginUser 当前登录用户
+     * @return 成功返回正数
+     */
+    @Override
+    public int updateUser(User user, User loginUser) {
+        long userId = user.getId();
+        if (userId <= 0) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+
+        // 补充校验, 如果用户没有传入任何要更新的值, 就直接抛出错误, 不执行更新语句
+        if (!hasUpdateFields(user)) {  // 检查是否有更新的字段
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "没有更新的字段");
+        }
+
+        // 如果不是管理员, 只允许更新当前(自己的)信息
+        if (!isAdmin(loginUser) && userId != loginUser.getId()) {
+            // 不是管理员并且当前修改的用户不是当前登录用户, 抛出异常
+            throw new BusinessException(ErrorCode.NO_AUTH, "无修改权限");
+        }
+
+        // 检查要更新的用户信息是否存在
+        User oldUser = userMapper.selectById(userId);
+        if (oldUser == null) {
+            throw new BusinessException(ErrorCode.PARAMS_NULL_ERROR, "用户不存在");
+        }
+
+        return userMapper.updateById(user);
+    }
+
+    /**
+     * 获取当前登录用户信息(未登录则抛异常)
+     *
+     * @param request 请求对象
+     * @return 用户信息对象
+     */
+    @Override
+    public User getLoginUser(HttpServletRequest request) {
+        if (request == null) {
+            return null;
+        }
+
+        Object userObj = request.getSession().getAttribute(USER_LOGIN_STATE);
+        if (userObj == null) {
+            throw new BusinessException(ErrorCode.NO_AUTH);
+        }
+
+        return (User) userObj;
+    }
+
+    /**
+     * 是否为管理员
+     *
+     * @param request 请求
+     * @return 是否为管理员
+     */
+    @Override
+    public boolean isAdmin(HttpServletRequest request) {
+        // 仅管理员可查询和删除
+        // 1. 从 session 中拿到用户的登录态, 返回用户信息
+        Object userObj = request.getSession().getAttribute(USER_LOGIN_STATE);
+        User user = (User) userObj;
+
+        // 2. 如果不是管理员则返回 false
+        return user != null && user.getUserRole() == ADMIN_ROLE;
+    }
+
+    /**
+     * 是否为管理员
+     *
+     * @param loginUser 登录用户
+     * @return 是否为管理员
+     */
+    @Override
+    public boolean isAdmin(User loginUser) {
+        return loginUser != null && loginUser.getUserRole() == ADMIN_ROLE;
+    }
+
+    /**
+     * 判断是否有需要更新的字段
+     */
+    private boolean hasUpdateFields(User user) {
+        return user.getUsername() != null ||
+                user.getUserAccount() != null ||
+                user.getAvatarUrl() != null ||
+                user.getGender() != null ||
+                user.getUserPassword() != null ||
+                user.getPhone() != null ||
+                user.getEmail() != null ||
+                user.getUserStatus() != null ||
+                user.getTags() != null ||
+                user.getProfile() != null ||
+                user.getPlanetCode() != null;
     }
 }
 
