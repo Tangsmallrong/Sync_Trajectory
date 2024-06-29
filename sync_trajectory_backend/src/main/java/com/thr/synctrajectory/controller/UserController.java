@@ -120,7 +120,6 @@ public class UserController {
         return ResultUtils.success(safetyUser);
     }
 
-
     /**
      * 根据用户名查询用户(仅管理员可查询)
      *
