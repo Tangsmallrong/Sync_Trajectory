@@ -1,6 +1,7 @@
 package com.thr.synctrajectory.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.thr.synctrajectory.common.BaseResponse;
 import com.thr.synctrajectory.common.ErrorCode;
 import com.thr.synctrajectory.common.ResultUtils;
@@ -158,6 +159,20 @@ public class UserController {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "标签不能为空");
         }
         List<User> userList = userService.searchUsersByTags(tagNameList);
+        return ResultUtils.success(userList);
+    }
+
+    /**
+     * 分页查询推荐用户
+     *
+     * @param pageSize 每页大小
+     * @param pageNum  页码
+     * @return 返回查询结果列表
+     */
+    @GetMapping("/recommend")
+    public BaseResponse<Page<User>> recommendUsers(long pageSize, long pageNum) {
+        QueryWrapper<User> queryWrapper = new QueryWrapper<>();
+        Page<User> userList = userService.page(new Page<>(pageNum, pageSize), queryWrapper);
         return ResultUtils.success(userList);
     }
 
