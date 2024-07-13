@@ -193,6 +193,7 @@ public class UserController {
         userPage = userService.page(new Page<>(pageNum, pageSize), queryWrapper);
         // 写缓存 30s过期
         try {
+            // todo 固定的过期时间可能导致缓存雪崩
             valueOperations.set(redisKey, userPage, 30000, TimeUnit.MILLISECONDS);
         } catch (Exception e) {
             // 这里捕获异常而不是直接交给全局异常处理器, 因为写缓存失败数据库的信息还可以正常返回给前端
