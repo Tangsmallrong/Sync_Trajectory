@@ -1,4 +1,4 @@
-package com.thr.synctrajectory.model.domain.request;
+package com.thr.synctrajectory.model.request;
 
 import lombok.Data;
 
