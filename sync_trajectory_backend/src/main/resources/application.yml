@@ -6,17 +6,15 @@ spring:
       matching-strategy: ant_path_matcher
   profiles:
     active: dev
-
   datasource:
     driver-class-name: com.mysql.jdbc.Driver
-    url: jdbc:mysql://localhost:3306/thr?useUnicode=true&characterEncoding=UTF-8&serverTimezone=UTC
+    url: jdbc:mysql://localhost:3306/thr?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai
     username: root
     password: thr
   # session 失效时间
   session:
     timeout: 86400  # 分钟, 此处是两个月
     store-type: redis
-
   # redis 配置
   redis:
     port: 6379

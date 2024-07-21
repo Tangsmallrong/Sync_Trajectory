@@ -8,17 +8,23 @@ import com.thr.synctrajectory.mapper.TeamMapper;
 import com.thr.synctrajectory.model.domain.Team;
 import com.thr.synctrajectory.model.domain.User;
 import com.thr.synctrajectory.model.domain.UserTeam;
+import com.thr.synctrajectory.model.dto.TeamQuery;
 import com.thr.synctrajectory.model.enums.TeamStatusEnum;
+import com.thr.synctrajectory.model.vo.TeamUserVO;
+import com.thr.synctrajectory.model.vo.UserVO;
 import com.thr.synctrajectory.service.TeamService;
+import com.thr.synctrajectory.service.UserService;
 import com.thr.synctrajectory.service.UserTeamService;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.annotation.Resource;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -30,6 +36,9 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team>
 
     @Resource
     private UserTeamService userTeamService;
+
+    @Resource
+    private UserService userService;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -108,9 +117,9 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team>
         UserTeam userTeam = new UserTeam();
         userTeam.setUserId(userId);
         userTeam.setTeamId(teamId);
-        Date joinTime = Date.from(LocalDateTime.now().toInstant(ZoneOffset.UTC));
-        // userTeam.setJoinTime(new Date());
-        userTeam.setJoinTime(joinTime);
+        userTeam.setJoinTime(new Date());
+//        Date joinTime = Date.from(LocalDateTime.now().toInstant(ZoneOffset.UTC));
+//        userTeam.setJoinTime(joinTime);
 
         result = userTeamService.save(userTeam);
         if (!result) {
@@ -118,6 +127,94 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team>
         }
 
         return teamId;
+    }
+
+    @Override
+    public List<TeamUserVO> listTeams(TeamQuery teamQuery, boolean isAdmin) {
+        QueryWrapper<Team> queryWrapper = new QueryWrapper<>();
+
+        // 组合查询条件
+        if (teamQuery != null) {
+            Long id = teamQuery.getId();
+            if (id != null && id > 0) {
+                queryWrapper.eq("id", id);
+            }
+            // 同时查询队伍名称和描述
+            String searchText = teamQuery.getSearchText();
+            if (StringUtils.isNotBlank(searchText)) {
+                queryWrapper.and(qw -> qw.like("name", searchText).or().like("description", searchText));
+            }
+            // 查询队伍名称
+            String name = teamQuery.getName();
+            if (StringUtils.isNotBlank(name)) {
+                queryWrapper.like("name", name);
+            }
+            // 查询队伍描述
+            String description = teamQuery.getDescription();
+            if (StringUtils.isNotBlank(description)) {
+                queryWrapper.like("description", description);
+            }
+            // 查询最大人数相等的
+            Integer maxNum = teamQuery.getMaxNum();
+            if (maxNum != null && maxNum > 0) {
+                queryWrapper.eq("maxNum", maxNum);
+            }
+            // 根据创建人来查询
+            Long userId = teamQuery.getUserId();
+            if (userId != null && userId > 0) {
+                queryWrapper.eq("userId", userId);
+            }
+            // 根据状态来查询
+            Integer status = teamQuery.getStatus();
+            TeamStatusEnum statusEnum = TeamStatusEnum.getEnumByValue(status);
+            if (statusEnum == null) {
+                statusEnum = TeamStatusEnum.PUBLIC;
+            }
+            // 只有管理员才能查看加密还有非公开的房间
+            if (!isAdmin && statusEnum.equals(TeamStatusEnum.PRIVATE)) {
+                throw new BusinessException(ErrorCode.NO_AUTH);
+            }
+            queryWrapper.eq("status", statusEnum.getValue());
+        }
+
+        // 不展示已过期队伍
+        // expireTime is null or expireTime > now()
+        queryWrapper.and(qw -> qw.gt("expireTime", new Date()).or().isNull("expireTime"));
+
+        // 符合查询条件的队伍
+        List<Team> teamList = this.list(queryWrapper);
+        if (CollectionUtils.isEmpty(teamList)) {
+            return new ArrayList<>();
+        }
+
+        // todo 关联查询用户信息(自己写 SQL)
+        // (1) 查询队伍和创建人的信息
+        // select * from team t left join user u on t.userId = u.id
+        // (2) 查询队伍和已加入队伍成员的信息
+        // select *
+        // from team t
+        //         left join user_team ut on t.id = ut.teamId
+        //         left join user u on ut.userId = u.id
+        // 关联查询创建人信息
+        List<TeamUserVO> teamUserVOList = new ArrayList<>();
+        for (Team team : teamList) {
+            Long userId = team.getUserId();
+            if (userId == null) {
+                continue;
+            }
+            User user = userService.getById(userId);
+            TeamUserVO teamUserVO = new TeamUserVO();
+            BeanUtils.copyProperties(team, teamUserVO);
+            // 脱敏用户信息
+            if (user != null) {
+                UserVO userVO = new UserVO();
+                BeanUtils.copyProperties(user, userVO);
+                teamUserVO.setCreateUser(userVO);
+            }
+            teamUserVOList.add(teamUserVO);
+        }
+
+        return teamUserVOList;
     }
 }
 

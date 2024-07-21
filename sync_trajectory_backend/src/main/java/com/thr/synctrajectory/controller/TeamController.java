@@ -10,6 +10,7 @@ import com.thr.synctrajectory.model.domain.Team;
 import com.thr.synctrajectory.model.domain.User;
 import com.thr.synctrajectory.model.dto.TeamQuery;
 import com.thr.synctrajectory.model.request.TeamAddRequest;
+import com.thr.synctrajectory.model.vo.TeamUserVO;
 import com.thr.synctrajectory.service.TeamService;
 import com.thr.synctrajectory.service.UserService;
 import lombok.extern.slf4j.Slf4j;
@@ -120,21 +121,13 @@ public class TeamController {
      * @return 修改成功/失败
      */
     @GetMapping("/list")
-    public BaseResponse<List<Team>> listTeams(TeamQuery teamQuery) {
+    public BaseResponse<List<TeamUserVO>> listTeams(TeamQuery teamQuery, HttpServletRequest request) {
         if (teamQuery == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
 
-        Team team = new Team();
-        try {
-            BeanUtils.copyProperties(team, teamQuery);
-        } catch (Exception e) {
-            throw new BusinessException(ErrorCode.SYSTEM_ERROR);
-        }
-
-        // queryWrapper 自动根据 team 里的字段去搜索, 但是不支持模糊查询
-        QueryWrapper<Team> queryWrapper = new QueryWrapper<>(team);
-        List<Team> teamList = teamService.list(queryWrapper);
+        boolean isAdmin = userService.isAdmin(request);
+        List<TeamUserVO> teamList = teamService.listTeams(teamQuery, isAdmin);
         return ResultUtils.success(teamList);
     }
 
