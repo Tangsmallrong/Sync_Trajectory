@@ -10,6 +10,8 @@ import com.thr.synctrajectory.model.domain.Team;
 import com.thr.synctrajectory.model.domain.User;
 import com.thr.synctrajectory.model.dto.TeamQuery;
 import com.thr.synctrajectory.model.request.TeamAddRequest;
+import com.thr.synctrajectory.model.request.TeamJoinRequest;
+import com.thr.synctrajectory.model.request.TeamUpdateRequest;
 import com.thr.synctrajectory.model.vo.TeamUserVO;
 import com.thr.synctrajectory.service.TeamService;
 import com.thr.synctrajectory.service.UserService;
@@ -79,16 +81,18 @@ public class TeamController {
     /**
      * 修改队伍信息
      *
-     * @param team 队伍信息
+     * @param teamUpdateRequest 队伍信息
      * @return 修改成功/失败
      */
     @PostMapping("/update")
-    public BaseResponse<Boolean> updateTeam(@RequestBody Team team) {
-        if (team == null) {
+    public BaseResponse<Boolean> updateTeam(@RequestBody TeamUpdateRequest teamUpdateRequest,
+                                            HttpServletRequest request) {
+        if (teamUpdateRequest == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "队伍信息为空");
         }
 
-        boolean result = teamService.updateById(team);
+        User loginUser = userService.getLoginUser(request);
+        boolean result = teamService.updateTeam(teamUpdateRequest, loginUser);
         if (!result) {
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, "更新队伍信息失败");
         }
@@ -137,7 +141,7 @@ public class TeamController {
      * @param teamQuery 队伍信息查询对象
      * @return 修改成功/失败
      */
-    @GetMapping("/page")
+    @GetMapping("/list/page")
     public BaseResponse<Page<Team>> listTeamsByPage(TeamQuery teamQuery) {
         if (teamQuery == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
@@ -151,5 +155,22 @@ public class TeamController {
         QueryWrapper<Team> queryWrapper = new QueryWrapper<>(team);
         Page<Team> teamPage = teamService.page(page, queryWrapper);
         return ResultUtils.success(teamPage);
+    }
+
+    /**
+     * 用户加入队伍
+     *
+     * @param teamJoinRequest 加入队伍请求
+     * @return 是否加入成功
+     */
+    @PostMapping("/join")
+    public BaseResponse<Boolean> joinTeam(@RequestBody TeamJoinRequest teamJoinRequest, HttpServletRequest request) {
+        if (teamJoinRequest == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+
+        User loginUser = userService.getLoginUser(request);
+        boolean result = teamService.joinTeam(teamJoinRequest, loginUser);
+        return ResultUtils.success(result);
     }
 }
