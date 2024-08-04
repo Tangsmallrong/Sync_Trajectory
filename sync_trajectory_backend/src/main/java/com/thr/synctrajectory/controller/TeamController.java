@@ -11,6 +11,7 @@ import com.thr.synctrajectory.model.domain.User;
 import com.thr.synctrajectory.model.dto.TeamQuery;
 import com.thr.synctrajectory.model.request.TeamAddRequest;
 import com.thr.synctrajectory.model.request.TeamJoinRequest;
+import com.thr.synctrajectory.model.request.TeamQuitRequest;
 import com.thr.synctrajectory.model.request.TeamUpdateRequest;
 import com.thr.synctrajectory.model.vo.TeamUserVO;
 import com.thr.synctrajectory.service.TeamService;
@@ -57,25 +58,6 @@ public class TeamController {
         BeanUtils.copyProperties(teamAddRequest, team);
         long teamId = teamService.addTeam(team, loginUser);
         return ResultUtils.success(teamId);
-    }
-
-    /**
-     * 删除队伍
-     *
-     * @param id 要删除的队伍编号
-     * @return 删除成功/失败
-     */
-    @PostMapping("/delete")
-    public BaseResponse<Boolean> deleteTeam(@RequestBody long id) {
-        if (id <= 0) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR);
-        }
-
-        boolean result = teamService.removeById(id);
-        if (!result) {
-            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "删除队伍失败");
-        }
-        return ResultUtils.success(true);
     }
 
     /**
@@ -171,6 +153,39 @@ public class TeamController {
 
         User loginUser = userService.getLoginUser(request);
         boolean result = teamService.joinTeam(teamJoinRequest, loginUser);
+        return ResultUtils.success(result);
+    }
+
+    /**
+     * 用户退出队伍
+     *
+     * @param teamQuitRequest 退出队伍请求
+     * @return 是否退出成功
+     */
+    @PostMapping("/quit")
+    public BaseResponse<Boolean> quitTeam(@RequestBody TeamQuitRequest teamQuitRequest, HttpServletRequest request) {
+        if (teamQuitRequest == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+        User loginUser = userService.getLoginUser(request);
+        boolean result = teamService.quitTeam(teamQuitRequest, loginUser);
+        return ResultUtils.success(result);
+    }
+
+    /**
+     * 队长解散队伍
+     *
+     * @param id 要解散的队伍编号
+     * @return 解散成功/失败
+     */
+    @PostMapping("/delete")
+    public BaseResponse<Boolean> deleteTeam(@RequestBody long id,  HttpServletRequest request) {
+        if (id <= 0) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+
+        User loginUser = userService.getLoginUser(request);
+        boolean result = teamService.deleteTeam(id, loginUser);
         return ResultUtils.success(result);
     }
 }

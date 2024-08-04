@@ -5,6 +5,7 @@ import com.thr.synctrajectory.model.domain.Team;
 import com.thr.synctrajectory.model.domain.User;
 import com.thr.synctrajectory.model.dto.TeamQuery;
 import com.thr.synctrajectory.model.request.TeamJoinRequest;
+import com.thr.synctrajectory.model.request.TeamQuitRequest;
 import com.thr.synctrajectory.model.request.TeamUpdateRequest;
 import com.thr.synctrajectory.model.vo.TeamUserVO;
 
@@ -28,7 +29,7 @@ public interface TeamService extends IService<Team> {
      * 搜索队伍
      *
      * @param teamQuery 队伍查询对象
-     * @param isAdmin 是否为管理员
+     * @param isAdmin   是否为管理员
      * @return 符合查询条件的队伍列表
      */
     List<TeamUserVO> listTeams(TeamQuery teamQuery, boolean isAdmin);
@@ -50,4 +51,22 @@ public interface TeamService extends IService<Team> {
      * @return 是否加入成功
      */
     boolean joinTeam(TeamJoinRequest teamJoinRequest, User loginUser);
+
+    /**
+     * 用户退出队伍
+     *
+     * @param teamQuitRequest 退出队伍请求对象
+     * @param loginUser       已登录用户
+     * @return 是否退出成功
+     */
+    boolean quitTeam(TeamQuitRequest teamQuitRequest, User loginUser);
+
+    /**
+     * 队长解散队伍
+     *
+     * @param id        要解散的队伍id
+     * @param loginUser 已登录用户
+     * @return 是否解散成功
+     */
+    boolean deleteTeam(long id, User loginUser);
 }

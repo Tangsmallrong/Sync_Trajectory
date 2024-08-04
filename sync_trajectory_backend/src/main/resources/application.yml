@@ -18,9 +18,8 @@ spring:
   # redis 配置
   redis:
     port: 6379
-    host: 192.168.253.254
-    database: 1  # 默认是 0 库
-    password: thr
+    host: 127.0.0.1
+    database: 2  # 默认是 0 库
 
 server:
   port: 8080
