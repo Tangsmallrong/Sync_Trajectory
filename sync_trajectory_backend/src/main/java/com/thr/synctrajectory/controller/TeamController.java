@@ -8,6 +8,7 @@ import com.thr.synctrajectory.common.ResultUtils;
 import com.thr.synctrajectory.exception.BusinessException;
 import com.thr.synctrajectory.model.domain.Team;
 import com.thr.synctrajectory.model.domain.User;
+import com.thr.synctrajectory.model.domain.UserTeam;
 import com.thr.synctrajectory.model.dto.TeamQuery;
 import com.thr.synctrajectory.model.request.TeamAddRequest;
 import com.thr.synctrajectory.model.request.TeamJoinRequest;
@@ -16,13 +17,17 @@ import com.thr.synctrajectory.model.request.TeamUpdateRequest;
 import com.thr.synctrajectory.model.vo.TeamUserVO;
 import com.thr.synctrajectory.service.TeamService;
 import com.thr.synctrajectory.service.UserService;
+import com.thr.synctrajectory.service.UserTeamService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.web.bind.annotation.*;
 
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * 队伍控制器
@@ -40,6 +45,9 @@ public class TeamController {
 
     @Resource
     private TeamService teamService;
+
+    @Resource
+    private UserTeamService userTeamService;
 
     /**
      * 新增队伍
@@ -179,7 +187,7 @@ public class TeamController {
      * @return 解散成功/失败
      */
     @PostMapping("/delete")
-    public BaseResponse<Boolean> deleteTeam(@RequestBody long id,  HttpServletRequest request) {
+    public BaseResponse<Boolean> deleteTeam(@RequestBody long id, HttpServletRequest request) {
         if (id <= 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
@@ -187,5 +195,51 @@ public class TeamController {
         User loginUser = userService.getLoginUser(request);
         boolean result = teamService.deleteTeam(id, loginUser);
         return ResultUtils.success(result);
+    }
+
+    /**
+     * 获取当前用户创建的队伍
+     *
+     * @param teamQuery
+     * @param request
+     * @return
+     */
+    @GetMapping("/list/my/create")
+    public BaseResponse<List<TeamUserVO>> listMyCreateTeams(TeamQuery teamQuery, HttpServletRequest request) {
+        if (teamQuery == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+
+        User loginUser = userService.getLoginUser(request);
+        teamQuery.setUserId(loginUser.getId());
+        List<TeamUserVO> teamList = teamService.listTeams(teamQuery, true);
+        return ResultUtils.success(teamList);
+    }
+
+    /**
+     * 获取当前用户加入的队伍
+     *
+     * @param teamQuery
+     * @param request
+     * @return
+     */
+    @GetMapping("/list/my/join")
+    public BaseResponse<List<TeamUserVO>> listMyJoinTeams(TeamQuery teamQuery, HttpServletRequest request) {
+        if (teamQuery == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+
+        // 查询当前用户加入的队伍编号列表
+        User loginUser = userService.getLoginUser(request);
+        QueryWrapper<UserTeam> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("userId", loginUser.getId());
+        List<UserTeam> userTeamList = userTeamService.list(queryWrapper);
+        // 去除不重复的队伍 id
+        Map<Long, List<UserTeam>> listMap = userTeamList.stream()
+                .collect(Collectors.groupingBy(UserTeam::getTeamId));
+        List<Long> idList = new ArrayList<>(listMap.keySet());
+        teamQuery.setIdList(idList);
+        List<TeamUserVO> teamList = teamService.listTeams(teamQuery, true);
+        return ResultUtils.success(teamList);
     }
 }

@@ -142,6 +142,13 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team>
             if (id != null && id > 0) {
                 queryWrapper.eq("id", id);
             }
+
+            // 若需要获取当前用户加入的队伍
+            List<Long> idList = teamQuery.getIdList();
+            if (CollectionUtils.isNotEmpty(idList)) {
+                queryWrapper.in("id", idList);
+            }
+
             // 同时查询队伍名称和描述
             String searchText = teamQuery.getSearchText();
             if (StringUtils.isNotBlank(searchText)) {
