@@ -9,16 +9,17 @@ import com.thr.synctrajectory.exception.BusinessException;
 import com.thr.synctrajectory.mapper.UserMapper;
 import com.thr.synctrajectory.model.domain.User;
 import com.thr.synctrajectory.service.UserService;
+import com.thr.synctrajectory.utils.AlgorithmUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.math3.util.Pair;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.DigestUtils;
 
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -345,6 +346,71 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
     @Override
     public boolean isAdmin(User loginUser) {
         return loginUser != null && loginUser.getUserRole() == ADMIN_ROLE;
+    }
+
+    /**
+     * 获取匹配的用户
+     *
+     * @param num       用户个数
+     * @param loginUser 登录用户
+     * @return 匹配的用户列表
+     */
+    @Override
+    public List<User> matchUsers(long num, User loginUser) {
+        QueryWrapper<User> queryWrapper = new QueryWrapper<>();
+        queryWrapper.select("id", "tags");  // 只查需要的字段
+        queryWrapper.apply("JSON_LENGTH(tags) > 0");  // 过滤掉标签为空的用户
+        queryWrapper.ne("id", loginUser.getId());  // 剔除自己
+        List<User> userList = this.list(queryWrapper);  // 查询所有用户
+
+        // 优先队列（最大堆）, 按编辑距离从高到低排列, 堆的大小为num
+        PriorityQueue<Pair<User, Integer>> maxHeap = new PriorityQueue<>(
+                (p1, p2) -> Integer.compare(p2.getValue(), p1.getValue())  // 按匹配分数降序排列
+        );
+
+        // 获取当前用户的标签列表
+        Gson gson = new Gson();
+        String tags = loginUser.getTags();
+        List<String> tagList = gson.fromJson(tags, new TypeToken<List<String>>() {
+        }.getType());
+
+        // 依次计算所有用户与当前用户的相似度
+        for (User user : userList) {
+            String userTags = user.getTags();
+            List<String> userTagList = gson.fromJson(userTags, new TypeToken<List<String>>() {
+            }.getType());
+
+            // 计算分数（编辑距离）
+            int matchScore = AlgorithmUtils.minDistance(tagList, userTagList);  // 计算匹配度
+
+            maxHeap.offer(new Pair<>(user, matchScore));  // 将用户和匹配分数加入优先队列
+
+            if (maxHeap.size() > num) {
+                maxHeap.poll();  // 如果队列超过指定大小, 移除编辑距离最大的用户(即匹配度低的用户)
+            }
+        }
+
+        // 获取最匹配的用户ID列表
+        List<Long> userIdList = maxHeap.stream()
+                .sorted(Comparator.comparingInt(Pair::getValue))  // 按匹配分数升序排列
+                .map(pair -> pair.getKey().getId())  // 提取用户ID
+                .collect(Collectors.toList());
+
+        // 根据ID列表查询用户详细信息
+        QueryWrapper<User> userQueryWrapper = new QueryWrapper<>();
+        userQueryWrapper.in("id", userIdList);
+        // 构建ID到用户对象的映射, 如 1->user1,2->user2,3->user3
+        Map<Long, User> userIdUserListMap = this.list(userQueryWrapper)
+                .stream()
+                .map(this::getSafetyUser)  // 等价于 (user -> this.getSafetyUser(user)
+                .collect(Collectors.toMap(User::getId, user -> user));
+
+        // 按顺序获取用户对象并组装为列表
+        return userIdList.stream()  // 假设 userIdList 为 [3, 1, 2]
+                // 等价于 userId -> userIdToUserMap.get(userId), 如 3->user3,1->user1,2->user2
+                .map(userIdUserListMap::get)  // 根据ID从Map中获取用户
+                .filter(Objects::nonNull)   // 过滤掉可能为null的结果
+                .collect(Collectors.toList());  // 返回按匹配顺序排列的用户列表
     }
 
     /**

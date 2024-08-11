@@ -242,4 +242,21 @@ public class UserController {
         boolean b = userService.removeById(id);
         return ResultUtils.success(b);
     }
+
+    /**
+     * 获取匹配的用户
+     *
+     * @param num     用户个数
+     * @param request 请求
+     * @return 匹配的用户列表
+     */
+    @GetMapping("match")
+    public BaseResponse<List<User>> matchUsers(long num, HttpServletRequest request) {
+        if (num <= 0 || num > 20) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+
+        User loginUser = userService.getLoginUser(request);
+        return ResultUtils.success(userService.matchUsers(num, loginUser));
+    }
 }
