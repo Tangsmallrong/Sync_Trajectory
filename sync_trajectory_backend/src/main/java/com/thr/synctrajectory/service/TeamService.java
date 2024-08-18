@@ -29,10 +29,10 @@ public interface TeamService extends IService<Team> {
      * 搜索队伍
      *
      * @param teamQuery 队伍查询对象
-     * @param isAdmin   是否为管理员
+     * @param loginUser 已登录用户
      * @return 符合查询条件的队伍列表
      */
-    List<TeamUserVO> listTeams(TeamQuery teamQuery, boolean isAdmin);
+    List<TeamUserVO> listTeams(TeamQuery teamQuery, User loginUser);
 
     /**
      * 修改队伍信息
@@ -69,4 +69,13 @@ public interface TeamService extends IService<Team> {
      * @return 是否解散成功
      */
     boolean deleteTeam(long id, User loginUser);
+
+    /**
+     * 根据队伍 id 获取队伍详细信息(包括当前队伍人数以及当前登录用户是否加入该队伍的状态)
+     *
+     * @param id        队伍 id
+     * @param loginUser 已登录用户
+     * @return 队伍详细信息
+     */
+    TeamUserVO getTeamUserById(long id, User loginUser);
 }

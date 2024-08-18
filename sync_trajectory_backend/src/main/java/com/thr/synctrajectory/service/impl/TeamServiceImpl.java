@@ -25,10 +25,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.annotation.Resource;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * @author thr
@@ -133,7 +131,7 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team>
     }
 
     @Override
-    public List<TeamUserVO> listTeams(TeamQuery teamQuery, boolean isAdmin) {
+    public List<TeamUserVO> listTeams(TeamQuery teamQuery, User loginUser) {
         QueryWrapper<Team> queryWrapper = new QueryWrapper<>();
 
         // 组合查询条件
@@ -174,17 +172,35 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team>
             if (userId != null && userId > 0) {
                 queryWrapper.eq("userId", userId);
             }
-            // 根据状态来查询
-            Integer status = teamQuery.getStatus();
-            TeamStatusEnum statusEnum = TeamStatusEnum.getEnumByValue(status);
-            if (statusEnum == null) {
-                statusEnum = TeamStatusEnum.PUBLIC;
+//            // 根据状态来查询
+//            Integer status = teamQuery.getStatus();
+//            TeamStatusEnum statusEnum = TeamStatusEnum.getEnumByValue(status);
+//            if (statusEnum == null) {
+//                statusEnum = TeamStatusEnum.PUBLIC;
+//            }
+//            // 只有管理员才能查看加密还有非公开的房间
+//            if (!loginUser && statusEnum.equals(TeamStatusEnum.PRIVATE)) {
+//                throw new BusinessException(ErrorCode.NO_AUTH);
+//            }
+            // 如果是查询当前用户创建或者加入的队伍, 不进行状态限制
+            boolean isCreator = userId != null && userId.equals(loginUser != null ? loginUser.getId() : null);
+            boolean isJoiner = CollectionUtils.isNotEmpty(idList);
+
+            if (!isCreator && !isJoiner) {
+                // 通用的状态逻辑
+                Integer status = teamQuery.getStatus();
+                TeamStatusEnum statusEnum = TeamStatusEnum.getEnumByValue(status);
+                if (statusEnum == null) {
+                    statusEnum = TeamStatusEnum.PUBLIC;
+                }
+
+                // 未登录用户只能查看公开的队伍
+                if (loginUser == null && statusEnum.equals(TeamStatusEnum.PRIVATE)) {
+                    throw new BusinessException(ErrorCode.NO_AUTH);
+                }
+
+                queryWrapper.eq("status", statusEnum.getValue());
             }
-            // 只有管理员才能查看加密还有非公开的房间
-            if (!isAdmin && statusEnum.equals(TeamStatusEnum.PRIVATE)) {
-                throw new BusinessException(ErrorCode.NO_AUTH);
-            }
-            queryWrapper.eq("status", statusEnum.getValue());
         }
 
         // 不展示已过期队伍
@@ -223,6 +239,9 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team>
             }
             teamUserVOList.add(teamUserVO);
         }
+
+        // 设置队伍的已加入人数
+        enrichTeamsWithJoinCounts(teamUserVOList);
 
         return teamUserVOList;
     }
@@ -400,6 +419,44 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team>
         return this.removeById(teamId);
     }
 
+    @Override
+    public TeamUserVO getTeamUserById(long id, User loginUser) {
+        Team team = this.getById(id);
+        if (team == null) {
+            throw new BusinessException(ErrorCode.PARAMS_NULL_ERROR, "队伍不存在");
+        }
+
+        // 将 Team 转换为 TeamUserVO
+        TeamUserVO teamUserVO = new TeamUserVO();
+        BeanUtils.copyProperties(team, teamUserVO);
+
+        // 查询当前队伍的加入人数和当前用户是否加入该队伍
+        QueryWrapper<UserTeam> userTeamQueryWrapper = new QueryWrapper<>();
+        userTeamQueryWrapper.eq("teamId", id);
+        List<UserTeam> userTeamList = userTeamService.list(userTeamQueryWrapper);
+
+        // 获取队伍当前加入人数
+        int teamHasJoinNum = userTeamList.size();
+        teamUserVO.setHasJoinNum(teamHasJoinNum);
+
+        // 判断当前用户是否加入队伍
+        boolean hasJoin = userTeamList.stream()
+                .anyMatch(userTeam -> userTeam.getUserId().equals(loginUser.getId()));
+        teamUserVO.setHasJoin(hasJoin);
+
+        // 获取并设置队伍所有成员的用户信息
+        List<Long> userIdList = userTeamList.stream()
+                .map(UserTeam::getUserId)
+                .collect(Collectors.toList());
+        List<User> userList = userService.listByIds(userIdList)
+                .stream()
+                .map(userService::getSafetyUser)  // 脱敏处理
+                .collect(Collectors.toList());
+        teamUserVO.setUserVOList(userList);
+
+        return teamUserVO;
+    }
+
     /**
      * 根据队伍id查询队伍人数
      *
@@ -427,6 +484,32 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team>
             throw new BusinessException(ErrorCode.PARAMS_NULL_ERROR, "队伍不存在");
         }
         return team;
+    }
+
+    /**
+     * 查询并设置加入队伍的用户信息(人数)
+     *
+     * @param teamList 队伍列表
+     */
+    private void enrichTeamsWithJoinCounts(List<TeamUserVO> teamList) {
+        if (CollectionUtils.isEmpty(teamList)) {
+            return;
+        }
+
+        // 获取队伍 ID 列表
+        List<Long> teamIdList = teamList.stream().map(TeamUserVO::getId).collect(Collectors.toList());
+
+        // 查询加入队伍的用户信息(人数)
+        QueryWrapper<UserTeam> userTeamJoinQueryWrapper = new QueryWrapper<>();
+        userTeamJoinQueryWrapper.in("teamId", teamIdList);
+        List<UserTeam> userTeamList = userTeamService.list(userTeamJoinQueryWrapper);
+        // 根据 teamId 进行分组, 获取每个队伍当前已加入的人数
+        Map<Long, List<UserTeam>> teamIdUserTeamList = userTeamList.stream()
+                .collect(Collectors.groupingBy(UserTeam::getTeamId));
+
+        // 设置队伍的加入人数
+        teamList.forEach(team
+                -> team.setHasJoinNum(teamIdUserTeamList.getOrDefault(team.getId(), new ArrayList<>()).size()));
     }
 }
 

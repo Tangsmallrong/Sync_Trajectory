@@ -10,6 +10,7 @@ import com.thr.synctrajectory.model.domain.Team;
 import com.thr.synctrajectory.model.domain.User;
 import com.thr.synctrajectory.model.domain.UserTeam;
 import com.thr.synctrajectory.model.dto.TeamQuery;
+import com.thr.synctrajectory.model.enums.TeamStatusEnum;
 import com.thr.synctrajectory.model.request.TeamAddRequest;
 import com.thr.synctrajectory.model.request.TeamJoinRequest;
 import com.thr.synctrajectory.model.request.TeamQuitRequest;
@@ -96,15 +97,13 @@ public class TeamController {
      * @return 修改成功/失败
      */
     @GetMapping("/get")
-    public BaseResponse<Team> getTeamById(long id) {
+    public BaseResponse<TeamUserVO> getTeamById(long id, HttpServletRequest request) {
         if (id <= 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
 
-        Team team = teamService.getById(id);
-        if (team == null) {
-            throw new BusinessException(ErrorCode.PARAMS_NULL_ERROR, "队伍信息不存在");
-        }
+        User loginUser = userService.getLoginUser(request);
+        TeamUserVO team = teamService.getTeamUserById(id, loginUser);
         return ResultUtils.success(team);
     }
 
@@ -120,8 +119,35 @@ public class TeamController {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
 
-        boolean isAdmin = userService.isAdmin(request);
-        List<TeamUserVO> teamList = teamService.listTeams(teamQuery, isAdmin);
+        User loginUser = null;
+        try {
+            loginUser = userService.getLoginUser(request);
+        } catch (Exception e) {
+            // 未登录的用户只能查看公开的队伍
+            teamQuery.setStatus(TeamStatusEnum.PUBLIC.getValue());
+        }
+        List<TeamUserVO> teamList = teamService.listTeams(teamQuery, loginUser);
+
+        // 判断当前用户是否已加入队伍
+        // 获取查询结果中所有队伍的 ID 列表
+//        final List<Long> teamIdList = teamList.stream().map(TeamUserVO::getId).collect(Collectors.toList());
+//        QueryWrapper<UserTeam> userTeamQueryWrapper = new QueryWrapper<>();
+//        // 将 getLoginUser 包裹在 try-catch 中, 确保未登录用户可以正常使用此接口
+//        try {
+//            User loginUser = userService.getLoginUser(request);
+//            userTeamQueryWrapper.eq("userId", loginUser.getId());
+//            userTeamQueryWrapper.in("teamId", teamIdList);
+//            // 查询当前登录用户已加入的队伍
+//            List<UserTeam> userTeamList = userTeamService.list(userTeamQueryWrapper);
+//            // 提取已加入的队伍 ID, 放入 Set 集合
+//            Set<Long> hasJoinTeamIdSet = userTeamList.stream().map(UserTeam::getTeamId).collect(Collectors.toSet());
+//            // 遍历队伍列表, 判断每个队伍是否已被当前用户加入
+//            teamList.forEach(team -> {
+//                boolean hasJoin = hasJoinTeamIdSet.contains(team.getId());
+//                team.setHasJoin(hasJoin);  // 设置加入状态, 方便前端按钮展示
+//            });
+//        } catch (Exception e) {}
+
         return ResultUtils.success(teamList);
     }
 
@@ -212,7 +238,7 @@ public class TeamController {
 
         User loginUser = userService.getLoginUser(request);
         teamQuery.setUserId(loginUser.getId());
-        List<TeamUserVO> teamList = teamService.listTeams(teamQuery, true);
+        List<TeamUserVO> teamList = teamService.listTeams(teamQuery, loginUser);
         return ResultUtils.success(teamList);
     }
 
@@ -239,7 +265,7 @@ public class TeamController {
                 .collect(Collectors.groupingBy(UserTeam::getTeamId));
         List<Long> idList = new ArrayList<>(listMap.keySet());
         teamQuery.setIdList(idList);
-        List<TeamUserVO> teamList = teamService.listTeams(teamQuery, true);
+        List<TeamUserVO> teamList = teamService.listTeams(teamQuery, loginUser);
         return ResultUtils.success(teamList);
     }
 }

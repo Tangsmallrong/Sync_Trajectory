@@ -1,9 +1,11 @@
 package com.thr.synctrajectory.model.vo;
 
+import com.thr.synctrajectory.model.domain.User;
 import lombok.Data;
 
 import java.io.Serializable;
 import java.util.Date;
+import java.util.List;
 
 /**
  * 队伍和用户信息封装类(脱敏)
@@ -63,5 +65,20 @@ public class TeamUserVO implements Serializable {
     /**
      * 创建人用户信息
      */
-    UserVO createUser;
+    private UserVO createUser;
+
+    /**
+     * 已加入用户数
+     */
+    private Integer hasJoinNum;
+
+    /**
+     * 当前用户是否已加入该队伍
+     */
+    private boolean hasJoin = false;
+
+    /**
+     * 已加入的所有用户信息
+     */
+    private List<User> userVOList;
 }
